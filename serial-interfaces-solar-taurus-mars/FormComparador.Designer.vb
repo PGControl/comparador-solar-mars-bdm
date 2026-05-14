@@ -31,6 +31,7 @@ Partial Class FormComparador
         lblPrefijo = New Label()
         cmbPrefijo = New ComboBox()
         btnComparar = New Button()
+        chkMostrarDescripciones = New CheckBox()
         btnAdecuarTodo = New Button()
         dgvPrincipal = New Zuby.ADGV.AdvancedDataGridView()
         lblLog = New Label()
@@ -122,14 +123,24 @@ Partial Class FormComparador
         cmbPrefijo.Size = New Size(121, 23)
         cmbPrefijo.TabIndex = 7
         ' 
+        ' chkMostrarDescripciones
+        ' 
+        chkMostrarDescripciones.AutoSize = True
+        chkMostrarDescripciones.Location = New Point(190, 123)
+        chkMostrarDescripciones.Name = "chkMostrarDescripciones"
+        chkMostrarDescripciones.Size = New Size(140, 19)
+        chkMostrarDescripciones.TabIndex = 13
+        chkMostrarDescripciones.Text = "Mostrar descripciones"
+        chkMostrarDescripciones.UseVisualStyleBackColor = True
+        ' 
         ' btnComparar
         ' 
         btnComparar.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        btnComparar.Location = New Point(188, 117)
+        btnComparar.Location = New Point(340, 117)
         btnComparar.Name = "btnComparar"
-        btnComparar.Size = New Size(556, 30)
+        btnComparar.Size = New Size(404, 30)
         btnComparar.TabIndex = 8
-        btnComparar.Text = "Comparar y Buscar para Adecuar"
+        btnComparar.Text = "Comparar"
         btnComparar.UseVisualStyleBackColor = True
         ' 
         ' btnAdecuarTodo
@@ -207,6 +218,7 @@ Partial Class FormComparador
         Controls.Add(dgvPrincipal)
         Controls.Add(btnAdecuarTodo)
         Controls.Add(btnComparar)
+        Controls.Add(chkMostrarDescripciones)
         Controls.Add(cmbPrefijo)
         Controls.Add(lblPrefijo)
         Controls.Add(lblBDM)
@@ -236,6 +248,7 @@ Partial Class FormComparador
     Friend WithEvents lblPrefijo As Label
     Friend WithEvents cmbPrefijo As ComboBox
     Friend WithEvents btnComparar As Button
+    Friend WithEvents chkMostrarDescripciones As CheckBox
     Friend WithEvents btnAdecuarTodo As Button
     Friend WithEvents dgvPrincipal As Zuby.ADGV.AdvancedDataGridView
     Friend WithEvents lblLog As Label

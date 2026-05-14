@@ -110,7 +110,9 @@ Public Class FormComparador
 
             Dim dt As New DataTable()
             dt.Columns.Add("Tag Serial")
+            dt.Columns.Add("Desc. Serial")
             dt.Columns.Add("Tag BDM")
+            dt.Columns.Add("Desc. BDM")
             dt.Columns.Add("Hoja BDM")
             dt.Columns.Add("Dir. Anterior (Serial Anterior)")
             dt.Columns.Add("Dir. Nueva (Sugerida por Serial Nuevo)")
@@ -121,7 +123,7 @@ Public Class FormComparador
             dt.Columns.Add("Estado BDM")
             dt.Columns.Add("Fila BDM", GetType(Integer))
 
-            Dim bdmData As New Dictionary(Of String, Tuple(Of String, String, String, Integer))(StringComparer.OrdinalIgnoreCase)
+            Dim bdmData As New Dictionary(Of String, Tuple(Of String, String, String, Integer, String))(StringComparer.OrdinalIgnoreCase)
             Dim allBaseTags As New HashSet(Of String)(tagsAnterior.Keys, StringComparer.OrdinalIgnoreCase)
             allBaseTags.UnionWith(tagsNuevo.Keys)
 
@@ -139,10 +141,11 @@ Public Class FormComparador
 
                             If tagBdm.StartsWith(prefijo, StringComparison.OrdinalIgnoreCase) Then
                                 Dim dirActual = If(hoja.Cells(fila, 5).Value?.ToString()?.Trim(), "")
+                                Dim descBdm = If(hoja.Cells(fila, 3).Value?.ToString()?.Trim(), "")
                                 Dim tagBase = tagBdm.Substring(prefijo.Length)
 
                                 If Not bdmData.ContainsKey(tagBase) Then
-                                    bdmData.Add(tagBase, New Tuple(Of String, String, String, Integer)(tagBdm, nombreHoja, dirActual, fila))
+                                    bdmData.Add(tagBase, New Tuple(Of String, String, String, Integer, String)(tagBdm, nombreHoja, dirActual, fila, descBdm))
                                 End If
                                 allBaseTags.Add(tagBase)
                             End If
@@ -167,6 +170,9 @@ Public Class FormComparador
                     Dim hoja = If(inBdm, bdmData(tagBase).Item2, "No en BDM")
                     Dim dirActual = If(inBdm, bdmData(tagBase).Item3, "N/A")
                     Dim fila = If(inBdm, bdmData(tagBase).Item4, -1)
+                    Dim descBdmStr = If(inBdm, bdmData(tagBase).Item5, "")
+
+                    Dim descSerialStr = If(inNuevo AndAlso descNueva <> "N/A", descNueva, If(inAnterior, descAnterior, ""))
 
                     Dim dirSugerida = "N/A"
                     If inNuevo Then
@@ -219,7 +225,7 @@ Public Class FormComparador
                         estadoBDM = "No en BDM"
                     End If
 
-                    dt.Rows.Add(tagSerialStr, tagBdmStr, hoja, dirAnterior, dirSugerida, resultadoComparacion, dirActual, descAnterior, descNueva, estadoBDM, fila)
+                    dt.Rows.Add(tagSerialStr, descSerialStr, tagBdmStr, descBdmStr, hoja, dirAnterior, dirSugerida, resultadoComparacion, dirActual, descAnterior, descNueva, estadoBDM, fila)
                 Next
 
                 If filasAPintar.Count > 0 Then
@@ -267,6 +273,14 @@ Public Class FormComparador
             dgvPrincipal.Columns("Desc. Nueva").Visible = False
         End If
 
+        If Not chkMostrarDescripciones.Checked Then
+            If dgvPrincipal.Columns.Contains("Desc. Serial") Then dgvPrincipal.Columns("Desc. Serial").Visible = False
+            If dgvPrincipal.Columns.Contains("Desc. BDM") Then dgvPrincipal.Columns("Desc. BDM").Visible = False
+        Else
+            If dgvPrincipal.Columns.Contains("Desc. Serial") Then dgvPrincipal.Columns("Desc. Serial").Visible = True
+            If dgvPrincipal.Columns.Contains("Desc. BDM") Then dgvPrincipal.Columns("Desc. BDM").Visible = True
+        End If
+
         If Not dgvPrincipal.Columns.Contains("Adecuar") Then
             Dim btnCol As New DataGridViewButtonColumn()
             btnCol.Name = "Adecuar"
@@ -300,6 +314,10 @@ Public Class FormComparador
         Next
 
         ColorearGrilla()
+    End Sub
+
+    Private Sub chkMostrarDescripciones_CheckedChanged(sender As Object, e As EventArgs) Handles chkMostrarDescripciones.CheckedChanged
+        ConfigurarGrilla()
     End Sub
 
     Private Sub ColorearGrilla()
@@ -381,7 +399,7 @@ Public Class FormComparador
                 Dim dt As DataTable = TryCast(dgvPrincipal.DataSource, DataTable)
                 If dt Is Nothing Then Return
 
-                Dim huerfanos As New List(Of String)
+                Dim huerfanos As New List(Of KeyValuePair(Of String, String))
                 For Each dr As DataRow In dt.Rows
                     If dr.RowState = DataRowState.Deleted Then Continue For
 
@@ -389,9 +407,17 @@ Public Class FormComparador
                     Dim est = dr("Estado BDM").ToString()
 
                     If isMissingBdm Then
-                        If rc = "No en Seriales" Then huerfanos.Add(dr("Tag BDM").ToString())
+                        If rc = "No en Seriales" Then
+                            Dim t = dr("Tag BDM").ToString()
+                            Dim d = dr("Desc. BDM").ToString()
+                            huerfanos.Add(New KeyValuePair(Of String, String)(t, t & " | " & d))
+                        End If
                     Else
-                        If est = "No en BDM" Then huerfanos.Add(dr("Tag Serial").ToString())
+                        If est = "No en BDM" Then
+                            Dim t = dr("Tag Serial").ToString()
+                            Dim d = dr("Desc. Serial").ToString()
+                            huerfanos.Add(New KeyValuePair(Of String, String)(t, t & " | " & d))
+                        End If
                     End If
                 Next
 
@@ -412,16 +438,14 @@ Public Class FormComparador
                 Dim lbTags As New ListBox()
                 lbTags.Dock = DockStyle.Fill
                 lbTags.Font = New Font("Segoe UI", 10)
-                lbTags.Items.AddRange(huerfanos.ToArray())
+                lbTags.DisplayMember = "Value"
+                lbTags.ValueMember = "Key"
+                lbTags.DataSource = huerfanos.ToArray()
 
                 AddHandler txtBusqueda.TextChanged, Sub(s, ev)
-                                                        lbTags.Items.Clear()
                                                         Dim filtro = txtBusqueda.Text.ToLower()
-                                                        For Each h In huerfanos
-                                                            If h.ToLower().Contains(filtro) Then
-                                                                lbTags.Items.Add(h)
-                                                            End If
-                                                        Next
+                                                        Dim filtrados = huerfanos.Where(Function(h) h.Value.ToLower().Contains(filtro)).ToArray()
+                                                        lbTags.DataSource = filtrados
                                                     End Sub
 
                 Dim btnAceptar As New Button()
@@ -435,16 +459,16 @@ Public Class FormComparador
                 Dim selectedTag As String = ""
 
                 AddHandler btnAceptar.Click, Sub(s, ev)
-                                                 If lbTags.SelectedItem IsNot Nothing Then
-                                                     selectedTag = lbTags.SelectedItem.ToString()
+                                                 If lbTags.SelectedValue IsNot Nothing Then
+                                                     selectedTag = lbTags.SelectedValue.ToString()
                                                      formSelector.DialogResult = DialogResult.OK
                                                  End If
                                                  formSelector.Close()
                                              End Sub
 
                 AddHandler lbTags.DoubleClick, Sub(s, ev)
-                                                   If lbTags.SelectedItem IsNot Nothing Then
-                                                       selectedTag = lbTags.SelectedItem.ToString()
+                                                   If lbTags.SelectedValue IsNot Nothing Then
+                                                       selectedTag = lbTags.SelectedValue.ToString()
                                                        formSelector.DialogResult = DialogResult.OK
                                                        formSelector.Close()
                                                    End If
@@ -485,15 +509,35 @@ Public Class FormComparador
                         End If
 
                         drSerial("Tag BDM") = drBdm("Tag BDM")
+                        drSerial("Desc. BDM") = drBdm("Desc. BDM")
                         drSerial("Hoja BDM") = drBdm("Hoja BDM")
                         drSerial("Dir. Actual (BDM)") = drBdm("Dir. Actual (BDM)")
                         drSerial("Fila BDM") = drBdm("Fila BDM")
-                        drSerial("Estado BDM") = "Pendiente"
-
                         drBdm.Delete()
 
-                        lblLog.ForeColor = Color.Blue
-                        lblLog.Text = $"[{DateTime.Now.ToString("HH:mm:ss")}] Info: Tags vinculados exitosamente. Ahora está Pendiente."
+                        ' Verificar si la dirección ya coincide y actualizar estado en consecuencia
+                        Dim dirSugeridaVinculo = drSerial("Dir. Nueva (Sugerida por Serial Nuevo)").ToString().Trim()
+                        Dim dirActualVinculo = drSerial("Dir. Actual (BDM)").ToString().Trim()
+                        Dim tagBdmVinculo = drSerial("Tag BDM").ToString()
+                        Dim tagSerialVinculo = drSerial("Tag Serial").ToString()
+
+                        If Not String.IsNullOrEmpty(dirSugeridaVinculo) AndAlso dirSugeridaVinculo <> "N/A" AndAlso
+                           Not String.IsNullOrEmpty(dirActualVinculo) AndAlso dirActualVinculo <> "N/A" Then
+                            If dirSugeridaVinculo.Equals(dirActualVinculo, StringComparison.OrdinalIgnoreCase) Then
+                                drSerial("Estado BDM") = "Adecuado"
+                                lblLog.ForeColor = Color.DarkGreen
+                                lblLog.Text = $"[{DateTime.Now.ToString("HH:mm:ss")}] ✔ Vinculado: {tagSerialVinculo} → {tagBdmVinculo} | La dirección ya coincide ({dirActualVinculo}). Marcado como Adecuado."
+                            Else
+                                drSerial("Estado BDM") = "Pendiente"
+                                lblLog.ForeColor = Color.DarkOrange
+                                lblLog.Text = $"[{DateTime.Now.ToString("HH:mm:ss")}] ⚠ Vinculado: {tagSerialVinculo} → {tagBdmVinculo} | Dir. BDM actual: [{dirActualVinculo}] → Sugerida: [{dirSugeridaVinculo}]. Requiere adecuación."
+                            End If
+                        Else
+                            drSerial("Estado BDM") = "Pendiente"
+                            lblLog.ForeColor = Color.Blue
+                            lblLog.Text = $"[{DateTime.Now.ToString("HH:mm:ss")}] Info: {tagSerialVinculo} → {tagBdmVinculo} vinculados. Sin dirección para comparar aún."
+                        End If
+
                         ColorearGrilla()
                     End If
                 End If
@@ -521,7 +565,7 @@ Public Class FormComparador
                 Return
             End If
 
-            If estadoBDM = "No en BDM" OrElse estadoBDM = "Pendiente" OrElse dirSugerida = "N/A" Then
+            If estadoBDM = "No en BDM" OrElse dirSugerida = "N/A" Then
                 lblLog.ForeColor = Color.Red
                 lblLog.Text = $"[{DateTime.Now.ToString("HH:mm:ss")}] Error: El tag {row.Cells("Tag BDM").Value} no se puede adecuar automáticamente."
                 Return
@@ -535,21 +579,37 @@ Public Class FormComparador
                 Using package As New ExcelPackage(New FileInfo(rutaBDM))
                     Dim hoja = package.Workbook.Worksheets(hojaName)
                     If hoja IsNot Nothing Then
-                        hoja.Cells(filaBdm, 5).Value = dirSugerida
+                        ' Buscar la fila real por su Tag BDM para no perder la referencia
+                        Dim filaReal As Integer = -1
+                        Dim totalFilas = If(hoja.Dimension IsNot Nothing, hoja.Dimension.Rows, 0)
+                        For f As Integer = 8 To totalFilas
+                            If hoja.Cells(f, 1).Value?.ToString()?.Trim().Equals(tagBdm, StringComparison.OrdinalIgnoreCase) Then
+                                filaReal = f
+                                Exit For
+                            End If
+                        Next
 
-                        Dim maxCol As Integer = If(hoja.Dimension IsNot Nothing, hoja.Dimension.Columns, 10)
-                        Using range = hoja.Cells(filaBdm, 1, filaBdm, maxCol)
-                            range.Style.Fill.PatternType = Style.ExcelFillStyle.Solid
-                            range.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(146, 208, 80))
-                        End Using
+                        If filaReal <> -1 Then
+                            hoja.Cells(filaReal, 5).Value = dirSugerida
 
-                        package.Save()
+                            Dim maxCol As Integer = If(hoja.Dimension IsNot Nothing, hoja.Dimension.Columns, 10)
+                            Using range = hoja.Cells(filaReal, 1, filaReal, maxCol)
+                                range.Style.Fill.PatternType = Style.ExcelFillStyle.Solid
+                                range.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(146, 208, 80))
+                            End Using
 
-                        row.Cells("Estado BDM").Value = "Adecuado"
-                        ColorearGrilla()
+                            package.Save()
 
-                        lblLog.ForeColor = Color.DarkGreen
-                        lblLog.Text = $"[{DateTime.Now.ToString("HH:mm:ss")}] Éxito: Tag {tagBdm} adecuado exitosamente."
+                            row.Cells("Estado BDM").Value = "Adecuado"
+                            row.Cells("Fila BDM").Value = filaReal
+                            ColorearGrilla()
+
+                            lblLog.ForeColor = Color.DarkGreen
+                            lblLog.Text = $"[{DateTime.Now.ToString("HH:mm:ss")}] Éxito: Tag {tagBdm} adecuado exitosamente."
+                        Else
+                            lblLog.ForeColor = Color.Red
+                            lblLog.Text = $"[{DateTime.Now.ToString("HH:mm:ss")}] Error: No se encontró el tag {tagBdm} en la hoja {hojaName} de la BDM."
+                        End If
                     End If
                 End Using
             Catch ex As Exception
@@ -597,17 +657,30 @@ Public Class FormComparador
 
                     Dim hoja = package.Workbook.Worksheets(hojaName)
                     If hoja IsNot Nothing Then
-                        hoja.Cells(filaBdm, 5).Value = dirSugerida
+                        ' Buscar la fila real por su Tag BDM
+                        Dim filaReal As Integer = -1
+                        Dim totalFilas = If(hoja.Dimension IsNot Nothing, hoja.Dimension.Rows, 0)
+                        For f As Integer = 8 To totalFilas
+                            If hoja.Cells(f, 1).Value?.ToString()?.Trim().Equals(tagBdm, StringComparison.OrdinalIgnoreCase) Then
+                                filaReal = f
+                                Exit For
+                            End If
+                        Next
 
-                        Dim maxCol As Integer = If(hoja.Dimension IsNot Nothing, hoja.Dimension.Columns, 10)
-                        Using range = hoja.Cells(filaBdm, 1, filaBdm, maxCol)
-                            range.Style.Fill.PatternType = Style.ExcelFillStyle.Solid
-                            range.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(146, 208, 80))
-                        End Using
+                        If filaReal <> -1 Then
+                            hoja.Cells(filaReal, 5).Value = dirSugerida
 
-                        row.Cells("Estado BDM").Value = "Adecuado"
-                        ColorearGrilla()
-                        cantAdecuados += 1
+                            Dim maxCol As Integer = If(hoja.Dimension IsNot Nothing, hoja.Dimension.Columns, 10)
+                            Using range = hoja.Cells(filaReal, 1, filaReal, maxCol)
+                                range.Style.Fill.PatternType = Style.ExcelFillStyle.Solid
+                                range.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(146, 208, 80))
+                            End Using
+
+                            row.Cells("Estado BDM").Value = "Adecuado"
+                            row.Cells("Fila BDM").Value = filaReal
+                            ColorearGrilla()
+                            cantAdecuados += 1
+                        End If
                     End If
                 Next
 
@@ -688,66 +761,82 @@ Public Class FormComparador
 
                     If ds.Tables.Contains("ComparadorPrincipal") Then
                         dtPrincipal = ds.Tables("ComparadorPrincipal").Copy()
+
+                        If Not dtPrincipal.Columns.Contains("Desc. Serial") Then
+                            dtPrincipal.Columns.Add("Desc. Serial").SetOrdinal(1)
+                            For Each r As DataRow In dtPrincipal.Rows
+                                Dim dN = If(Not IsDBNull(r("Desc. Nueva")), r("Desc. Nueva").ToString(), "N/A")
+                                Dim dA = If(Not IsDBNull(r("Desc. Anterior")), r("Desc. Anterior").ToString(), "N/A")
+                                r("Desc. Serial") = If(dN <> "N/A", dN, dA)
+                            Next
+                        End If
+                        If Not dtPrincipal.Columns.Contains("Desc. BDM") Then
+                            dtPrincipal.Columns.Add("Desc. BDM").SetOrdinal(3)
+                        End If
                     Else
-                        ' Migrar desde formato viejo
-                        esViejoFormato = True
-                        dtPrincipal = New DataTable()
-                        dtPrincipal.Columns.Add("Tag Serial")
-                        dtPrincipal.Columns.Add("Tag BDM")
-                        dtPrincipal.Columns.Add("Hoja BDM")
-                        dtPrincipal.Columns.Add("Dir. Anterior (Serial Anterior)")
-                        dtPrincipal.Columns.Add("Dir. Nueva (Sugerida por Serial Nuevo)")
-                        dtPrincipal.Columns.Add("Resultado Comparación")
-                        dtPrincipal.Columns.Add("Dir. Actual (BDM)")
-                        dtPrincipal.Columns.Add("Desc. Anterior")
-                        dtPrincipal.Columns.Add("Desc. Nueva")
-                        dtPrincipal.Columns.Add("Estado BDM")
-                        dtPrincipal.Columns.Add("Fila BDM", GetType(Integer))
+                    ' Migrar desde formato viejo
+                    esViejoFormato = True
+                    dtPrincipal = New DataTable()
+                    dtPrincipal.Columns.Add("Tag Serial")
+                    dtPrincipal.Columns.Add("Desc. Serial")
+                    dtPrincipal.Columns.Add("Tag BDM")
+                    dtPrincipal.Columns.Add("Desc. BDM")
+                    dtPrincipal.Columns.Add("Hoja BDM")
+                    dtPrincipal.Columns.Add("Dir. Anterior (Serial Anterior)")
+                    dtPrincipal.Columns.Add("Dir. Nueva (Sugerida por Serial Nuevo)")
+                    dtPrincipal.Columns.Add("Resultado Comparación")
+                    dtPrincipal.Columns.Add("Dir. Actual (BDM)")
+                    dtPrincipal.Columns.Add("Desc. Anterior")
+                    dtPrincipal.Columns.Add("Desc. Nueva")
+                    dtPrincipal.Columns.Add("Estado BDM")
+                    dtPrincipal.Columns.Add("Fila BDM", GetType(Integer))
 
-                        Dim tManual = If(ds.Tables.Contains("iFix_ComparadorTags"), ds.Tables("iFix_ComparadorTags"), Nothing)
-                        Dim tAuto = If(ds.Tables.Contains("AutomaticaTags"), ds.Tables("AutomaticaTags"), Nothing)
+                    Dim tManual = If(ds.Tables.Contains("iFix_ComparadorTags"), ds.Tables("iFix_ComparadorTags"), Nothing)
+                    Dim tAuto = If(ds.Tables.Contains("AutomaticaTags"), ds.Tables("AutomaticaTags"), Nothing)
 
-                        Dim dictViejo As New Dictionary(Of String, DataRow)(StringComparer.OrdinalIgnoreCase)
-                        If tManual IsNot Nothing Then
-                            For Each row In tManual.Rows
-                                Dim tag = row("Tag Name").ToString()
-                                If Not dictViejo.ContainsKey(tag) Then dictViejo.Add(tag, row)
-                            Next
-                        End If
-
-                        If tAuto IsNot Nothing Then
-                            For Each row In tAuto.Rows
-                                Dim tagBdm = row("Tag BDM").ToString()
-                                Dim prefijo = "PUE_TC1_" ' Adivinar si no hay metadata
-                                If ds.Tables.Contains("Metadata") AndAlso ds.Tables("Metadata").Columns.Contains("Prefijo") AndAlso Not IsDBNull(ds.Tables("Metadata").Rows(0)("Prefijo")) Then
-                                    prefijo = ds.Tables("Metadata").Rows(0)("Prefijo").ToString()
-                                End If
-
-                                Dim tagBase = tagBdm
-                                If tagBdm.StartsWith(prefijo, StringComparison.OrdinalIgnoreCase) Then
-                                    tagBase = tagBdm.Substring(prefijo.Length)
-                                End If
-
-                                Dim rAnterior = If(dictViejo.ContainsKey(tagBase), dictViejo(tagBase), Nothing)
-                                Dim dirAnterior = If(rAnterior IsNot Nothing, rAnterior("Dir. PLC (Arch 1)").ToString(), "N/A")
-                                Dim descAnterior = If(rAnterior IsNot Nothing, rAnterior("Descripción (Arch 1)").ToString(), "N/A")
-                                Dim descNueva = If(rAnterior IsNot Nothing, rAnterior("Descripción (Arch 2)").ToString(), "N/A")
-
-                                Dim resComp = If(rAnterior IsNot Nothing, rAnterior("Resultado").ToString(), "No en Seriales")
-                                Dim estBdm = row("Estado").ToString()
-                                dtPrincipal.Rows.Add(tagBase, tagBdm, row("Hoja").ToString(), dirAnterior, row("Dir. Sugerida").ToString(), resComp, row("Dir. BDM").ToString(), descAnterior, descNueva, estBdm, Convert.ToInt32(row("Fila BDM")))
-
-                                ' Eliminar para no duplicar si iteramos despues
-                                If dictViejo.ContainsKey(tagBase) Then dictViejo.Remove(tagBase)
-                            Next
-                        End If
-
-                        ' Agregar los que quedaron en manual y no en automatico
-                        For Each kvp In dictViejo
-                            Dim tagBase = kvp.Key
-                            Dim r = kvp.Value
-                            dtPrincipal.Rows.Add(tagBase, "N/A", "N/A", r("Dir. PLC (Arch 1)").ToString(), "N/A", r("Resultado").ToString(), "N/A", r("Descripción (Arch 1)").ToString(), r("Descripción (Arch 2)").ToString(), "No en BDM", -1)
+                    Dim dictViejo As New Dictionary(Of String, DataRow)(StringComparer.OrdinalIgnoreCase)
+                    If tManual IsNot Nothing Then
+                        For Each row In tManual.Rows
+                            Dim tag = row("Tag Name").ToString()
+                            If Not dictViejo.ContainsKey(tag) Then dictViejo.Add(tag, row)
                         Next
+                    End If
+
+                    If tAuto IsNot Nothing Then
+                        For Each row In tAuto.Rows
+                            Dim tagBdm = row("Tag BDM").ToString()
+                            Dim prefijo = "PUE_TC1_" ' Adivinar si no hay metadata
+                            If ds.Tables.Contains("Metadata") AndAlso ds.Tables("Metadata").Columns.Contains("Prefijo") AndAlso Not IsDBNull(ds.Tables("Metadata").Rows(0)("Prefijo")) Then
+                                prefijo = ds.Tables("Metadata").Rows(0)("Prefijo").ToString()
+                            End If
+
+                            Dim tagBase = tagBdm
+                            If tagBdm.StartsWith(prefijo, StringComparison.OrdinalIgnoreCase) Then
+                                tagBase = tagBdm.Substring(prefijo.Length)
+                            End If
+
+                            Dim rAnterior = If(dictViejo.ContainsKey(tagBase), dictViejo(tagBase), Nothing)
+                            Dim dirAnterior = If(rAnterior IsNot Nothing, rAnterior("Dir. PLC (Arch 1)").ToString(), "N/A")
+                            Dim descAnterior = If(rAnterior IsNot Nothing, rAnterior("Descripción (Arch 1)").ToString(), "N/A")
+                            Dim descNueva = If(rAnterior IsNot Nothing, rAnterior("Descripción (Arch 2)").ToString(), "N/A")
+
+                            Dim resComp = If(rAnterior IsNot Nothing, rAnterior("Resultado").ToString(), "No en Seriales")
+                            Dim estBdm = row("Estado").ToString()
+                            Dim dSerial = If(descNueva <> "N/A", descNueva, descAnterior)
+                            dtPrincipal.Rows.Add(tagBase, dSerial, tagBdm, "", row("Hoja").ToString(), dirAnterior, row("Dir. Sugerida").ToString(), resComp, row("Dir. BDM").ToString(), descAnterior, descNueva, estBdm, Convert.ToInt32(row("Fila BDM")))
+
+                            ' Eliminar para no duplicar si iteramos despues
+                            If dictViejo.ContainsKey(tagBase) Then dictViejo.Remove(tagBase)
+                        Next
+                    End If
+
+                    ' Agregar los que quedaron en manual y no en automatico
+                    For Each kvp In dictViejo
+                        Dim tagBase = kvp.Key
+                        Dim r = kvp.Value
+                        Dim dSerial = r("Descripción (Arch 1)").ToString()
+                        dtPrincipal.Rows.Add(tagBase, dSerial, "N/A", "", "N/A", r("Dir. PLC (Arch 1)").ToString(), "N/A", r("Resultado").ToString(), "N/A", dSerial, r("Descripción (Arch 2)").ToString(), "No en BDM", -1)
+                    Next
                     End If
 
                     If ds.Tables.Contains("Metadata") AndAlso ds.Tables("Metadata").Rows.Count > 0 Then
