@@ -37,6 +37,7 @@ Partial Class FormComparador
         lblLog = New Label()
         MenuStrip1 = New MenuStrip()
         FileToolStripMenuItem = New ToolStripMenuItem()
+        NewToolStripMenuItem = New ToolStripMenuItem()
         OpenToolStripMenuItem = New ToolStripMenuItem()
         SaveToolStripMenuItem = New ToolStripMenuItem()
         SaveAsToolStripMenuItem = New ToolStripMenuItem()
@@ -186,10 +187,16 @@ Partial Class FormComparador
         ' 
         ' FileToolStripMenuItem
         ' 
-        FileToolStripMenuItem.DropDownItems.AddRange(New ToolStripItem() {OpenToolStripMenuItem, SaveToolStripMenuItem, SaveAsToolStripMenuItem})
+        FileToolStripMenuItem.DropDownItems.AddRange(New ToolStripItem() {NewToolStripMenuItem, OpenToolStripMenuItem, SaveToolStripMenuItem, SaveAsToolStripMenuItem})
         FileToolStripMenuItem.Name = "FileToolStripMenuItem"
         FileToolStripMenuItem.Size = New Size(37, 20)
         FileToolStripMenuItem.Text = "File"
+        ' 
+        ' NewToolStripMenuItem
+        ' 
+        NewToolStripMenuItem.Name = "NewToolStripMenuItem"
+        NewToolStripMenuItem.Size = New Size(180, 22)
+        NewToolStripMenuItem.Text = "New"
         ' 
         ' OpenToolStripMenuItem
         ' 
@@ -254,6 +261,7 @@ Partial Class FormComparador
     Friend WithEvents lblLog As Label
     Friend WithEvents MenuStrip1 As MenuStrip
     Friend WithEvents FileToolStripMenuItem As ToolStripMenuItem
+    Friend WithEvents NewToolStripMenuItem As ToolStripMenuItem
     Friend WithEvents OpenToolStripMenuItem As ToolStripMenuItem
     Friend WithEvents SaveToolStripMenuItem As ToolStripMenuItem
     Friend WithEvents SaveAsToolStripMenuItem As ToolStripMenuItem
